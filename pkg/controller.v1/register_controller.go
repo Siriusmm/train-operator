@@ -20,6 +20,7 @@ import (
 
 	kubeflowv1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
 	"github.com/kubeflow/training-operator/pkg/controller.v1/common"
+	deepspeedcontroller "github.com/kubeflow/training-operator/pkg/controller.v1/deepspeed"
 	mpicontroller "github.com/kubeflow/training-operator/pkg/controller.v1/mpi"
 	mxnetcontroller "github.com/kubeflow/training-operator/pkg/controller.v1/mxnet"
 	paddlecontroller "github.com/kubeflow/training-operator/pkg/controller.v1/paddlepaddle"
@@ -49,6 +50,9 @@ var SupportedSchemeReconciler = map[string]ReconcilerSetupFunc{
 	},
 	kubeflowv1.MPIJobKind: func(mgr manager.Manager, gangSchedulingSetupFunc common.GangSchedulingSetupFunc, controllerThreads int) error {
 		return mpicontroller.NewReconciler(mgr, gangSchedulingSetupFunc).SetupWithManager(mgr, controllerThreads)
+	},
+	kubeflowv1.DeepspeedJobKind: func(mgr manager.Manager, gangSchedulingSetupFunc common.GangSchedulingSetupFunc, controllerThreads int) error {
+		return deepspeedcontroller.NewReconciler(mgr, gangSchedulingSetupFunc).SetupWithManager(mgr, controllerThreads)
 	},
 	kubeflowv1.PaddleJobKind: func(mgr manager.Manager, gangSchedulingSetupFunc common.GangSchedulingSetupFunc, controllerThreads int) error {
 		return paddlecontroller.NewReconciler(mgr, gangSchedulingSetupFunc).SetupWithManager(mgr, controllerThreads)

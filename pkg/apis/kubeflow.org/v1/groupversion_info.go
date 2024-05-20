@@ -28,7 +28,8 @@ var (
 	// GroupVersion is group version used to register these objects
 	GroupVersion = schema.GroupVersion{Group: "kubeflow.org", Version: "v1"}
 
-	MPIJobSchemeGroupVersionKind = schema.GroupVersionKind{Group: "kubeflow.org", Version: "v1", Kind: MPIJobKind}
+	MPIJobSchemeGroupVersionKind       = schema.GroupVersionKind{Group: "kubeflow.org", Version: "v1", Kind: MPIJobKind}
+	DeepspeedJobSchemeGroupVersionKind = schema.GroupVersionKind{Group: "kubeflow.org", Version: "v1", Kind: DeepspeedJobKind}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}

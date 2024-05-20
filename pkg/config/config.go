@@ -19,6 +19,7 @@ var Config struct {
 	PyTorchInitContainerTemplateFile string
 	PyTorchInitContainerImage        string
 	MPIKubectlDeliveryImage          string
+	DeepspeedKubectlDeliveryImage    string
 	PyTorchInitContainerMaxTries     int
 }
 
@@ -33,4 +34,6 @@ const (
 	PyTorchInitContainerMaxTriesDefault = 100
 	// MPIKubectlDeliveryImageDefault is the default image for launcher pod in MPIJob init container.
 	MPIKubectlDeliveryImageDefault = "kubeflow/kubectl-delivery:latest"
+
+	DeepspeedKubectlDeliveryImageDefault = "kubeflow/kubectl-delivery:latest"
 )
