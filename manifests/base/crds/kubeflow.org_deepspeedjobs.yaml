@@ -9,7 +9,7 @@ spec:
   group: kubeflow.org
   names:
     kind: DeepspeedJob
-    listKind: MPIJobList
+    listKind: DeepspeedJobList
     plural: deepspeedjobs
     singular: deepspeedjob
     shortNames:
