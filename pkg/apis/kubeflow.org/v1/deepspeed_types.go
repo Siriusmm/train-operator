@@ -68,7 +68,7 @@ type DeepspeedJobSpec struct {
 
 	// `DeepspeedReplicaSpecs` contains maps from `DeepspeedReplicaType` to `ReplicaSpec` that
 	// specify the Deepspeed replicas to run.
-	DeepspeedReplicaSpecs map[ReplicaType]*ReplicaSpec `json:"DeepspeedReplicaSpecs"`
+	DeepspeedReplicaSpecs map[ReplicaType]*ReplicaSpec `json:"deepspeedReplicaSpecs"`
 
 	// MainContainer specifies name of the main container which
 	// executes the Deepspeed code.

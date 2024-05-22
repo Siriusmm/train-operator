@@ -1,0 +1,87 @@
+apiVersion: kubeflow.org/v1
+kind: MPIJob
+metadata:
+  name: mpitest
+spec:
+  slotsPerWorker: 1
+  runPolicy:
+    cleanPodPolicy: Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+         spec:
+           #initContainers:
+           #  - name: kubectl-delivery
+           #    image: dockerhub.aicp.local/aicp_common/mpioperator/kubectl-delivery:latest
+           containers:
+           - image: tjzs-dockerhub.qingcloud.com/siriusliang/deepspeed:test
+             name: mpitest
+             resources:
+              limits:
+                cpu: 1
+                memory: 2Gi
+             command: ['sh', '-c', "/root/init.sh;sleep 600; deepspeed --hostfile /etc/mpi/hostfile /root/test.py"]
+           nodeName: hs05
+           tolerations:
+            - key: aicp.group/worker
+              operator: Exists
+            - key: node.kubernetes.io/not-ready
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 300
+            - key: node.kubernetes.io/unreachable
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 300
+           affinity:
+             podAffinity:
+               preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 50
+                  podAffinityTerm:
+                    topologyKey: kubernetes.io/hostname
+                    labelSelector:
+                      matchExpressions:
+                        - key: aicp.group/workload
+                          operator: In
+                          values:
+                            - container
+
+    Worker:
+      replicas: 2
+      template:
+        spec:
+          containers:
+          - image: tjzs-dockerhub.qingcloud.com/siriusliang/llama2-train:deepspeed-mpi
+            name: mpitest
+            command: ["/bin/bash", "-c"]
+            args: ["service ssh start;ln -s /opt/conda/bin/python /usr/bin/python;echo 'import sys \nprint(sys.version)' > /root/test.py;mkdir -p /root/.ssh;echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCntINzpieFtfvzHjk38WArZHx0GRvZAd4xi6WD2dMXz8g0ZaWaVMoEPJOEeebMa7haYkJItR8yqGwEC5eA7Ke5nfP135xIDT0jSdS8EJJ5dHHQbVB416AueuE4tllZ60dT9qHMSgSiKnmzEkSOpghgBLKnyT8THK+1ohyb/sgOLlfLxf9Pr4vmyGNkSs1XhqPZ/AMhv/L7eJnUB10fniE59xaNm/6MCx4+j3xecoafQcIXTxkAQVzOF/2I7yCU6kXoyydmCQe4J4KRej9koXa8fKiqOS/gAQOqjmxkrDX0pugF+MexiIvvlxI+D/3Ad1uTQkkaEEcUQeYaTaq28ciH root@nb-dldnhxgjq22o-0' >> /root/.ssh/authorized_keys;sleep infinity"]
+            resources:
+              limits:
+                cpu: 10
+                memory: 80Gi
+                nvidia.com/gpu: 1
+          nodeName: hs05
+          tolerations:
+            - key: aicp.group/worker
+              operator: Exists
+            - key: node.kubernetes.io/not-ready
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 300
+            - key: node.kubernetes.io/unreachable
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 300
+          affinity:
+            podAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+               - weight: 50
+                 podAffinityTerm:
+                   topologyKey: kubernetes.io/hostname
+                   labelSelector:
+                     matchExpressions:
+                       - key: aicp.group/workload
+                         operator: In
+                         values:
+                           - container

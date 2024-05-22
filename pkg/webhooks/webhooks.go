@@ -31,12 +31,13 @@ type WebhookSetupFunc func(manager manager.Manager) error
 
 var (
 	SupportedSchemeWebhook = map[string]WebhookSetupFunc{
-		trainingoperator.PyTorchJobKind: pytorch.SetupWebhook,
-		trainingoperator.TFJobKind:      tensorflow.SetupWebhook,
-		trainingoperator.MXJobKind:      mxnet.SetupWebhook,
-		trainingoperator.XGBoostJobKind: xgboost.SetupWebhook,
-		trainingoperator.MPIJobKind:     scaffold,
-		trainingoperator.PaddleJobKind:  paddlepaddle.SetupWebhook,
+		trainingoperator.PyTorchJobKind:   pytorch.SetupWebhook,
+		trainingoperator.TFJobKind:        tensorflow.SetupWebhook,
+		trainingoperator.MXJobKind:        mxnet.SetupWebhook,
+		trainingoperator.XGBoostJobKind:   xgboost.SetupWebhook,
+		trainingoperator.MPIJobKind:       scaffold,
+		trainingoperator.PaddleJobKind:    paddlepaddle.SetupWebhook,
+		trainingoperator.DeepspeedJobKind: scaffold,
 	}
 )
 

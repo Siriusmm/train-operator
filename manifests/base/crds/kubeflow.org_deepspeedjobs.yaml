@@ -54,9 +54,9 @@ spec:
               mainContainer:
                 description: |-
                   MainContainer specifies name of the main container which
-                  executes the MPI code.
+                  executes the deepspeed code.
                 type: string
-              mpiReplicaSpecs:
+              deepspeedReplicaSpecs:
                 additionalProperties:
                   description: ReplicaSpec is a description of the replica
                   properties:
@@ -7288,8 +7288,8 @@ spec:
                       type: object
                   type: object
                 description: |-
-                  `MPIReplicaSpecs` contains maps from `MPIReplicaType` to `ReplicaSpec` that
-                  specify the MPI replicas to run.
+                  `deepspeedReplicaSpecs` contains maps from `deepspeedReplicaType` to `ReplicaSpec` that
+                  specify the deepspeed replicas to run.
                 type: object
               runPolicy:
                 description: |-
@@ -7362,7 +7362,7 @@ spec:
                 format: int32
                 type: integer
             required:
-            - mpiReplicaSpecs
+            - deepspeedReplicaSpecs
             type: object
           status:
             description: JobStatus represents the current observed state of the training
