@@ -566,6 +566,9 @@ func (jc *DeepspeedJobReconciler) UpdateJobStatus(job interface{}, replicas map[
 	}
 
 	for rtype, spec := range replicas {
+		fmt.Println(rtype)
+		fmt.Printf("job status %v \n", jobStatus.ReplicaStatuses)
+		fmt.Println(jobStatus.ReplicaStatuses[rtype])
 		status := jobStatus.ReplicaStatuses[rtype]
 
 		succeeded := status.Succeeded

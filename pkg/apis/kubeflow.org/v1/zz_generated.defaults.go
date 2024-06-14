@@ -29,6 +29,8 @@ import (
 func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&MPIJob{}, func(obj interface{}) { SetObjectDefaults_MPIJob(obj.(*MPIJob)) })
 	scheme.AddTypeDefaultingFunc(&MPIJobList{}, func(obj interface{}) { SetObjectDefaults_MPIJobList(obj.(*MPIJobList)) })
+	scheme.AddTypeDefaultingFunc(&DeepspeedJob{}, func(obj interface{}) { SetObjectDefaults_DeepspeedJob(obj.(*DeepspeedJob)) })
+	scheme.AddTypeDefaultingFunc(&DeepspeedJobList{}, func(obj interface{}) { SetObjectDefaults_DeepspeedJobList(obj.(*DeepspeedJobList)) })
 	scheme.AddTypeDefaultingFunc(&MXJob{}, func(obj interface{}) { SetObjectDefaults_MXJob(obj.(*MXJob)) })
 	scheme.AddTypeDefaultingFunc(&MXJobList{}, func(obj interface{}) { SetObjectDefaults_MXJobList(obj.(*MXJobList)) })
 	scheme.AddTypeDefaultingFunc(&PaddleJob{}, func(obj interface{}) { SetObjectDefaults_PaddleJob(obj.(*PaddleJob)) })
@@ -50,6 +52,17 @@ func SetObjectDefaults_MPIJobList(in *MPIJobList) {
 	for i := range in.Items {
 		a := &in.Items[i]
 		SetObjectDefaults_MPIJob(a)
+	}
+}
+
+func SetObjectDefaults_DeepspeedJob(in *DeepspeedJob) {
+	SetDefaults_DeepspeedJob(in)
+}
+
+func SetObjectDefaults_DeepspeedJobList(in *DeepspeedJobList) {
+	for i := range in.Items {
+		a := &in.Items[i]
+		SetObjectDefaults_DeepspeedJob(a)
 	}
 }
 
