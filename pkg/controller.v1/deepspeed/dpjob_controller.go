@@ -131,6 +131,8 @@ func (jc *DeepspeedJobReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	Deepspeedjob := &kubeflowv1.DeepspeedJob{}
 	err := jc.Get(ctx, req.NamespacedName, Deepspeedjob)
 	if err != nil {
+		logger.Info("delete dp svc")
+		jc.deleteWorkerHeadlessSVC(req.Name, Deepspeedjob.Namespace)
 		logger.Info(err.Error(), "unable to fetch DeepspeedJob", req.NamespacedName.String())
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -421,6 +423,8 @@ func (jc *DeepspeedJobReconciler) updateDeepspeedJobStatus(DeepspeedJob *kubeflo
 				now := metav1.Now()
 				DeepspeedJob.Status.CompletionTime = &now
 			}
+			logrus.Info("job finish delete svc")
+			jc.deleteWorkerHeadlessSVC(DeepspeedJob.Name, DeepspeedJob.Namespace)
 			err := updateDeepspeedJobConditions(DeepspeedJob, kubeflowv1.JobSucceeded, commonutil.NewReason(kubeflowv1.DeepspeedJobKind, commonutil.JobSucceededReason), msg)
 			if err != nil {
 				return err
@@ -428,6 +432,8 @@ func (jc *DeepspeedJobReconciler) updateDeepspeedJobStatus(DeepspeedJob *kubeflo
 		} else if isPodFailed(launcher) {
 			DeepspeedJob.Status.ReplicaStatuses[kubeflowv1.DeepspeedJobReplicaTypeLauncher].Failed = 1
 			msg := fmt.Sprintf("DeepspeedJob %s/%s has failed", DeepspeedJob.Namespace, DeepspeedJob.Name)
+			logrus.Info("job failed delete svc")
+			jc.deleteWorkerHeadlessSVC(DeepspeedJob.Name, DeepspeedJob.Namespace)
 			reason := launcher.Status.Reason
 			if reason == "" {
 				reason = commonutil.NewReason(kubeflowv1.DeepspeedJobKind, commonutil.JobFailedReason)
@@ -545,7 +551,7 @@ func (jc *DeepspeedJobReconciler) DeleteJob(job interface{}) error {
 		log.Errorf("failed to delete job %s/%s, %v", DeepspeedJob.Namespace, DeepspeedJob.Name, err)
 		return err
 	}
-
+	jc.deleteWorkerHeadlessSVC(DeepspeedJob.Name, DeepspeedJob.Namespace)
 	jc.Recorder.Eventf(DeepspeedJob, corev1.EventTypeNormal, SuccessfulDeleteJobReason, "Deleted job: %v", DeepspeedJob.Name)
 	log.Infof("job %s/%s has been deleted", DeepspeedJob.Namespace, DeepspeedJob.Name)
 	trainingoperatorcommon.DeletedJobsCounterInc(DeepspeedJob.Namespace, jc.GetFrameworkName())
@@ -688,7 +694,7 @@ func (jc *DeepspeedJobReconciler) getOrCreateConfigMap(DeepspeedJob *kubeflowv1.
 		return nil, err
 	}
 	updateDiscoverHostsInConfigMap(newCM, DeepspeedJob, podList, isGPULauncher)
-
+	jc.createWorkerHeadlessSVC(podList, DeepspeedJob.Name)
 	cm := &corev1.ConfigMap{}
 	NamespacedName := types.NamespacedName{Namespace: DeepspeedJob.Namespace, Name: DeepspeedJob.Name + configSuffix}
 	err = jc.Get(context.Background(), NamespacedName, cm)
@@ -848,7 +854,6 @@ func (jc *DeepspeedJobReconciler) getOrCreateWorker(DeepspeedJob *kubeflowv1.Dee
 
 	podlist := &corev1.PodList{}
 	err = jc.List(context.Background(), podlist, client.MatchingLabelsSelector{Selector: selector}, client.InNamespace(DeepspeedJob.GetNamespace()))
-
 	if err != nil {
 		return nil, err
 	}
@@ -888,6 +893,7 @@ func (jc *DeepspeedJobReconciler) getOrCreateWorker(DeepspeedJob *kubeflowv1.Dee
 			}
 			// Insert ReplicaIndexLabel
 			worker.Labels[kubeflowv1.ReplicaIndexLabel] = strconv.Itoa(int(i))
+			worker.Labels["dp-worker"] = name
 			pod, err = jc.KubeClientSet.CoreV1().Pods(DeepspeedJob.Namespace).Create(context.Background(), worker, metav1.CreateOptions{})
 			if err == nil {
 				jc.Recorder.Eventf(DeepspeedJob, corev1.EventTypeNormal, "SuccessfulCreatePod", "Created worker pod: %v", pod.Name)
@@ -1076,6 +1082,7 @@ func (jc *DeepspeedJobReconciler) newLauncher(DeepspeedJob *kubeflowv1.Deepspeed
 				corev1.ResourceEphemeralStorage: resource.MustParse(initContainerEphStorage),
 			},
 		},
+		Command: []string{"/etc/deepspeed/update_hosts.sh"},
 	})
 	if len(podSpec.Spec.Containers) == 0 {
 		klog.Errorln("Launcher pod does not have any containers in its spec")
@@ -1181,6 +1188,11 @@ func (jc *DeepspeedJobReconciler) newLauncher(DeepspeedJob *kubeflowv1.Deepspeed
 							Path: discoverHostsScriptName,
 							Mode: &scriptsMode,
 						},
+						{
+							Key:  "update_hosts.sh",
+							Path: "update_hosts.sh",
+							Mode: &scriptsMode,
+						},
 					},
 				},
 			},
@@ -1249,7 +1261,6 @@ shift
 	for i := 0; i < int(workerReplicas); i++ {
 		buffer.WriteString(fmt.Sprintf("%s%s-%d slots=%d\n", DeepspeedJob.Name, workerSuffix, i, slots))
 	}
-
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      DeepspeedJob.Name + configSuffix,
@@ -1399,4 +1410,45 @@ func setRestartPolicy(podTemplateSpec *corev1.PodTemplateSpec, spec *kubeflowv1.
 	} else {
 		podTemplateSpec.Spec.RestartPolicy = corev1.RestartPolicy(spec.RestartPolicy)
 	}
+}
+
+func (jc *DeepspeedJobReconciler) createWorkerHeadlessSVC(podList []*corev1.Pod, jobName string) {
+	for _, p := range podList {
+		headlessService := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   p.Name,
+				Labels: map[string]string{"dpjob": jobName},
+			},
+			Spec: corev1.ServiceSpec{
+				ClusterIP: corev1.ClusterIPNone, // 设置为 None 创建 Headless Service
+				Selector: map[string]string{
+					"dp-worker": p.Name, // 使用标签选择器匹配 Pod
+				},
+			},
+		}
+		_, err := jc.KubeClientSet.CoreV1().Services(p.Namespace).Create(context.Background(), headlessService, metav1.CreateOptions{})
+		if err != nil {
+			logrus.Error(err.Error())
+		}
+	}
+
+}
+
+func (jc *DeepspeedJobReconciler) deleteWorkerHeadlessSVC(jobName string, namespace string) {
+
+	serviceList, err := jc.KubeClientSet.CoreV1().Services(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("dpjob=%s", jobName),
+	})
+	logrus.Info(fmt.Sprintf("dpjob=%s", jobName))
+	if err != nil {
+		logrus.Error(err.Error())
+	}
+	for _, svc := range serviceList.Items {
+		err = jc.KubeClientSet.CoreV1().Services(svc.Namespace).Delete(context.Background(), svc.Name, metav1.DeleteOptions{})
+		if err != nil {
+			logrus.Error(err.Error())
+		}
+		logrus.Infof("Deleted Service %s in Namespace %s\n", svc.Name, svc.Namespace)
+	}
+	logrus.Info("delete svc finish")
 }

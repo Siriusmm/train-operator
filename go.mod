@@ -2,6 +2,8 @@ module github.com/kubeflow/training-operator
 
 go 1.21
 
+toolchain go1.21.1
+
 require (
 	github.com/go-logr/logr v1.4.1
 	github.com/google/go-cmp v0.6.0

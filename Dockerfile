@@ -12,6 +12,7 @@ RUN go mod download
 
 # Copy the go source
 COPY . .
+RUN  go mod tidy
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GO111MODULE=on go build -a -o manager cmd/training-operator.v1/main.go
