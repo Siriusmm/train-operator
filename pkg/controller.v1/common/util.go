@@ -15,12 +15,18 @@
 package common
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
 	apiv1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -142,4 +148,49 @@ func CalcPGMinResources(minMember int32, replicas map[apiv1.ReplicaType]*apiv1.R
 	}
 
 	return &minAvailableTasksRes
+}
+
+func GenSshKeyPair() (string, string) {
+
+	// 生成RSA密钥对，长度为2048位
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "无法生成私钥: %s\n", err)
+		os.Exit(1)
+	}
+
+	// 将私钥编码为PEM格式
+	privDER := x509.MarshalPKCS1PrivateKey(privateKey)
+	privBlock := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: privDER,
+	}
+	privPEM := pem.EncodeToMemory(privBlock)
+
+	// 将PEM格式的私钥写入文件（可选）
+	// err = os.WriteFile("id_rsa", privPEM, 0600)
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "无法写入私钥文件: %s\n", err)
+	// 	os.Exit(1)
+	// }
+
+	// 生成公钥（通常SSH公钥是公钥的SSH格式，而不是PEM或DER）
+	publicKey := &privateKey.PublicKey
+	sshKey, err := ssh.NewPublicKey(publicKey)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "无法创建SSH公钥: %s\n", err)
+		os.Exit(1)
+	}
+
+	// 将公钥转换为SSH格式并写入文件（可选）
+	sshPub := ssh.MarshalAuthorizedKey(sshKey)
+	// err = os.WriteFile("id_rsa.pub", sshPub, 0644)
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "无法写入公钥文件: %s\n", err)
+	// 	os.Exit(1)
+	// }
+
+	fmt.Println("密钥对生成成功！")
+	return string(sshPub), string(privPEM)
+
 }

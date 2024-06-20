@@ -710,6 +710,17 @@ func (jc *DeepspeedJobReconciler) getOrCreateConfigMap(DeepspeedJob *kubeflowv1.
 		return nil, err
 	}
 
+	sshCM := newSshConfigMap(DeepspeedJob)
+	sshClientCM := newLaunchSshClientConfigMap(DeepspeedJob)
+	_, err = jc.KubeClientSet.CoreV1().ConfigMaps(DeepspeedJob.Namespace).Create(context.Background(), sshCM, metav1.CreateOptions{})
+	if err != nil {
+		logrus.Error("create sshCM failed ", err)
+	}
+	_, err = jc.KubeClientSet.CoreV1().ConfigMaps(DeepspeedJob.Namespace).Create(context.Background(), sshClientCM, metav1.CreateOptions{})
+	if err != nil {
+		logrus.Error("create sshClientCM failed ", err)
+	}
+
 	// If the ConfigMap is not controlled by this DeepspeedJob resource, we
 	// should log a warning to the event recorder and return.
 	if !metav1.IsControlledBy(cm, DeepspeedJob) {
@@ -948,36 +959,72 @@ func (jc *DeepspeedJobReconciler) newWorker(DeepspeedJob *kubeflowv1.DeepspeedJo
 	}
 	container := podSpec.Spec.Containers[0]
 	if len(container.Command) == 0 {
-		container.Command = []string{"sleep"}
-		container.Args = []string{"365d"}
+		container.Command = []string{"/bin/sh", "-c", "mkdir -p /var/run/sshd; echo StrictModes no >> /etc/ssh/sshd_config;/usr/sbin/sshd -D"}
 	}
 
 	// We need the kubexec.sh script here because Open Deepspeed checks for the path
 	// in every rank.
-	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
-		Name:      configVolumeName,
-		MountPath: configMountPath,
-	})
+
+	container.VolumeMounts = append(container.VolumeMounts,
+		corev1.VolumeMount{
+			Name:      configVolumeName,
+			MountPath: configMountPath,
+		},
+		corev1.VolumeMount{
+			Name:      sshVolumeName,
+			MountPath: sshMountPath,
+		},
+	)
 	podSpec.Spec.Containers[0] = container
 
 	scriptMode := int32(0555)
-	podSpec.Spec.Volumes = append(podSpec.Spec.Volumes, corev1.Volume{
-		Name: configVolumeName,
-		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: DeepspeedJob.Name + configSuffix,
-				},
-				Items: []corev1.KeyToPath{
-					{
-						Key:  kubexecScriptName,
-						Path: kubexecScriptName,
-						Mode: &scriptMode,
+	sshfileMode := int32(0400)
+	podSpec.Spec.Volumes = append(podSpec.Spec.Volumes,
+		corev1.Volume{
+			Name: configVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: DeepspeedJob.Name + configSuffix,
+					},
+					Items: []corev1.KeyToPath{
+						{
+							Key:  kubexecScriptName,
+							Path: kubexecScriptName,
+							Mode: &scriptMode,
+						},
 					},
 				},
 			},
 		},
-	})
+		corev1.Volume{
+			Name: sshVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: DeepspeedJob.Name + sshConfigSuffix,
+					},
+					Items: []corev1.KeyToPath{
+						{
+							Key:  authorizedKeysFile,
+							Path: authorizedKeysFile,
+							Mode: &sshfileMode,
+						},
+						{
+							Key:  publicKeyFile,
+							Path: publicKeyFile,
+							Mode: &sshfileMode,
+						},
+						{
+							Key:  privateKeyFile,
+							Path: privateKeyFile,
+							Mode: &sshfileMode,
+						},
+					},
+				},
+			},
+		},
+	)
 
 	// if gang-scheduling is enabled:
 	// 1. if user has specified other scheduler, we report a warning without overriding any fields.
@@ -1082,7 +1129,6 @@ func (jc *DeepspeedJobReconciler) newLauncher(DeepspeedJob *kubeflowv1.Deepspeed
 				corev1.ResourceEphemeralStorage: resource.MustParse(initContainerEphStorage),
 			},
 		},
-		Command: []string{"/etc/deepspeed/update_hosts.sh"},
 	})
 	if len(podSpec.Spec.Containers) == 0 {
 		klog.Errorln("Launcher pod does not have any containers in its spec")
@@ -1144,7 +1190,16 @@ func (jc *DeepspeedJobReconciler) newLauncher(DeepspeedJob *kubeflowv1.Deepspeed
 		corev1.VolumeMount{
 			Name:      configVolumeName,
 			MountPath: configMountPath,
-		})
+		},
+		corev1.VolumeMount{
+			Name:      sshVolumeName,
+			MountPath: sshMountPath,
+		},
+		corev1.VolumeMount{
+			Name:      sshClientVolumeName,
+			MountPath: sshClientConfigMountPath,
+		},
+	)
 	podSpec.Spec.Containers[0] = container
 
 	// Submit a warning event if the user specifies restart policy for
@@ -1158,6 +1213,7 @@ func (jc *DeepspeedJobReconciler) newLauncher(DeepspeedJob *kubeflowv1.Deepspeed
 
 	scriptsMode := int32(0555)
 	hostfileMode := int32(0444)
+	sshfileMode := int32(0400)
 	podSpec.Spec.Volumes = append(podSpec.Spec.Volumes,
 		corev1.Volume{
 			Name: kubectlVolumeName,
@@ -1188,15 +1244,55 @@ func (jc *DeepspeedJobReconciler) newLauncher(DeepspeedJob *kubeflowv1.Deepspeed
 							Path: discoverHostsScriptName,
 							Mode: &scriptsMode,
 						},
+					},
+				},
+			},
+		},
+		corev1.Volume{
+			Name: sshVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: DeepspeedJob.Name + sshConfigSuffix,
+					},
+					Items: []corev1.KeyToPath{
 						{
-							Key:  "update_hosts.sh",
-							Path: "update_hosts.sh",
-							Mode: &scriptsMode,
+							Key:  authorizedKeysFile,
+							Path: authorizedKeysFile,
+							Mode: &sshfileMode,
+						},
+						{
+							Key:  publicKeyFile,
+							Path: publicKeyFile,
+							Mode: &sshfileMode,
+						},
+						{
+							Key:  privateKeyFile,
+							Path: privateKeyFile,
+							Mode: &sshfileMode,
 						},
 					},
 				},
 			},
-		})
+		},
+		corev1.Volume{
+			Name: sshClientVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: DeepspeedJob.Name + sshClientConfigSuffix,
+					},
+					Items: []corev1.KeyToPath{
+						{
+							Key:  sshClientConfName,
+							Path: sshClientConfName,
+							Mode: &sshfileMode,
+						},
+					},
+				},
+			},
+		},
+	)
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        launcherName,
@@ -1451,4 +1547,51 @@ func (jc *DeepspeedJobReconciler) deleteWorkerHeadlessSVC(jobName string, namesp
 		logrus.Infof("Deleted Service %s in Namespace %s\n", svc.Name, svc.Namespace)
 	}
 	logrus.Info("delete svc finish")
+}
+
+func newSshConfigMap(DeepspeedJob *kubeflowv1.DeepspeedJob) *corev1.ConfigMap {
+	publicKey, privateKey := common.GenSshKeyPair()
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      DeepspeedJob.Name + "-sshkey",
+			Namespace: DeepspeedJob.Namespace,
+			Labels: map[string]string{
+				"app": DeepspeedJob.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(DeepspeedJob, kubeflowv1.DeepspeedJobSchemeGroupVersionKind),
+			},
+		},
+		Data: map[string]string{
+			authorizedKeysFile: publicKey,
+			publicKeyFile:      publicKey,
+			privateKeyFile:     privateKey,
+		},
+	}
+}
+
+func newLaunchSshClientConfigMap(DeepspeedJob *kubeflowv1.DeepspeedJob) *corev1.ConfigMap {
+	ssh_config_content := `Include /etc/ssh/ssh_config.d/*.conf
+		Host *
+		SendEnv LANG LC_*
+        HashKnownHosts yes
+        GSSAPIAuthentication yes
+        StrictHostKeyChecking no
+		`
+	logrus.Info("create ssh conf configmap")
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      DeepspeedJob.Name + sshClientConfigSuffix,
+			Namespace: DeepspeedJob.Namespace,
+			Labels: map[string]string{
+				"app": DeepspeedJob.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(DeepspeedJob, kubeflowv1.DeepspeedJobSchemeGroupVersionKind),
+			},
+		},
+		Data: map[string]string{
+			sshClientConfName: ssh_config_content,
+		},
+	}
 }

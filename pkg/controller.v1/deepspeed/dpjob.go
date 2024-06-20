@@ -34,6 +34,11 @@ const (
 	kubectlDeliveryName        = "kubectl-delivery"
 	kubectlTargetDirEnv        = "TARGET_DIR"
 	kubectlVolumeName          = "deepspeed-job-kubectl"
+	sshVolumeName              = "ssh-key"
+	sshConfigSuffix            = "-sshkey"
+	sshClientVolumeName        = "launch-ssh-config"
+	sshClientConfigSuffix      = "-sshconfig"
+	sshClientConfName          = "ssh_config"
 	kubectlMountPath           = "/opt/kube"
 	launcher                   = "launcher"
 	worker                     = "worker"
@@ -45,6 +50,11 @@ const (
 	initContainerEphStorage    = "5Gi"
 	initContainerMem           = "512Mi"
 	iDeepspeedDefaultBootstrap = "rsh"
+	authorizedKeysFile         = "authorized_keys"
+	publicKeyFile              = "id_rsa.pub"
+	privateKeyFile             = "id_rsa"
+	sshMountPath               = "/root/.ssh"
+	sshClientConfigMountPath   = "/etc/ssh"
 )
 
 const (
