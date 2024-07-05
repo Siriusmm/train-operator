@@ -107,7 +107,7 @@ func main() {
 		config.MPIKubectlDeliveryImageDefault, "The image for mpi launcher init container")
 
 	// deepspeed related flags
-	flag.StringVar(&config.Config.DeepspeedKubectlDeliveryImage, "deepspeed-kubectl-delivery-image",
+	flag.StringVar(&config.Config.DeepspeedKubectlDeliveryImage, "mpi-kubectl-delivery-image",
 		config.DeepspeedKubectlDeliveryImageDefault, "The image for deepspeed launcher init container")
 
 	// Cert generation flags

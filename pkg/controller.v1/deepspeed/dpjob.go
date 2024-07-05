@@ -27,7 +27,7 @@ import (
 const (
 	configSuffix               = "-config"
 	configVolumeName           = "deepspeed-job-config"
-	configMountPath            = "/etc/deepspeed"
+	configMountPath            = "/job"
 	kubexecScriptName          = "kubexec.sh"
 	hostfileName               = "hostfile"
 	discoverHostsScriptName    = "discover_hosts.sh"
@@ -54,7 +54,7 @@ const (
 	publicKeyFile              = "id_rsa.pub"
 	privateKeyFile             = "id_rsa"
 	sshMountPath               = "/root/.ssh"
-	sshClientConfigMountPath   = "/etc/ssh"
+	sshClientConfigMountPath   = "/etc/ssh/ssh_config"
 )
 
 const (

@@ -1198,6 +1198,7 @@ func (jc *DeepspeedJobReconciler) newLauncher(DeepspeedJob *kubeflowv1.Deepspeed
 		corev1.VolumeMount{
 			Name:      sshClientVolumeName,
 			MountPath: sshClientConfigMountPath,
+			SubPath:   sshClientConfName,
 		},
 	)
 	podSpec.Spec.Containers[0] = container
@@ -1509,7 +1510,9 @@ func setRestartPolicy(podTemplateSpec *corev1.PodTemplateSpec, spec *kubeflowv1.
 }
 
 func (jc *DeepspeedJobReconciler) createWorkerHeadlessSVC(podList []*corev1.Pod, jobName string) {
+	var namespace string = "default"
 	for _, p := range podList {
+		namespace = p.Namespace
 		headlessService := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   p.Name,
@@ -1527,7 +1530,24 @@ func (jc *DeepspeedJobReconciler) createWorkerHeadlessSVC(podList []*corev1.Pod,
 			logrus.Error(err.Error())
 		}
 	}
+	jc.createLaunchrHeadlessSVC(jobName, namespace)
 
+}
+
+func (jc *DeepspeedJobReconciler) createLaunchrHeadlessSVC(jobName string, namespace string) {
+	headlessService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   fmt.Sprintf("%s-launcher", jobName),
+			Labels: map[string]string{"dpjob": jobName},
+		},
+		Spec: corev1.ServiceSpec{
+			ClusterIP: corev1.ClusterIPNone, // 设置为 None 创建 Headless Service
+			Selector: map[string]string{
+				"dp-launch": fmt.Sprintf("%s-launcher", jobName), // 使用标签选择器匹配 Pod
+			},
+		},
+	}
+	jc.KubeClientSet.CoreV1().Services(namespace).Create(context.Background(), headlessService, metav1.CreateOptions{})
 }
 
 func (jc *DeepspeedJobReconciler) deleteWorkerHeadlessSVC(jobName string, namespace string) {

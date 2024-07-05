@@ -1,4 +1,5 @@
 # Build the manager binary
+#FROM hub.kubesphere.com.cn/public/golang:1.22-arm as builder
 FROM golang:1.22 as builder
 
 WORKDIR /workspace
@@ -19,7 +20,7 @@ RUN CGO_ENABLED=0 GOOS=linux GO111MODULE=on go build -a -o manager cmd/training-
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM registry.cn-hangzhou.aliyuncs.com/sirius333/distroless-static:latest
+FROM hub.kubesphere.com.cn/public/distroless/static:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
 ENTRYPOINT ["/manager"]
