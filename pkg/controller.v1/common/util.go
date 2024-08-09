@@ -54,6 +54,10 @@ func (p ReplicasPriority) Swap(i, j int) {
 }
 
 func GenGeneralName(jobName string, rtype string, index string) string {
+	if rtype == "launcher" {
+		n := jobName + "-" + strings.ToLower(rtype)
+		return strings.Replace(n, "/", "-", -1)
+	}
 	n := jobName + "-" + strings.ToLower(rtype) + "-" + index
 	return strings.Replace(n, "/", "-", -1)
 }

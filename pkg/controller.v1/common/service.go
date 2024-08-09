@@ -15,6 +15,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -184,6 +185,7 @@ func (jc *JobController) ReconcileServices(
 			commonutil.LoggerForReplica(job, rt).Infof("need to create new service: %s-%d", rtype, index)
 			err = jc.CreateNewService(job, rtype, spec, strconv.Itoa(index))
 			if err != nil {
+				fmt.Println(err)
 				return err
 			}
 		} else {
@@ -219,12 +221,20 @@ func (jc *JobController) CreateNewService(job metav1.Object, rtype apiv1.Replica
 	rt := strings.ToLower(string(rtype))
 	labels := jc.GenLabels(job.GetName())
 	utillabels.SetReplicaType(labels, rt)
-	utillabels.SetReplicaIndexStr(labels, index)
+	svcName := GenGeneralName(job.GetName(), rt, index)
+	_, err = jc.KubeClientSet.CoreV1().Services(job.GetNamespace()).Get(context.TODO(), svcName, metav1.GetOptions{})
+	if err == nil {
+		fmt.Printf("svc [%s] exits no need to create", svcName)
+		return nil
+	}
+	if rt != "launcher" {
+		utillabels.SetReplicaIndexStr(labels, index)
+	}
 
 	ports, err := jc.GetPortsFromJob(spec)
-	if err != nil {
-		return err
-	}
+	// if err != nil {
+	// 	return err
+	// }
 
 	service := &v1.Service{
 		Spec: v1.ServiceSpec{
@@ -238,6 +248,10 @@ func (jc *JobController) CreateNewService(job metav1.Object, rtype apiv1.Replica
 	for name, port := range ports {
 		svcPort := v1.ServicePort{Name: name, Port: port}
 		service.Spec.Ports = append(service.Spec.Ports, svcPort)
+	}
+	if len(service.Spec.Ports) == 0 {
+		tmpPort := v1.ServicePort{Name: "auto", Port: 1333}
+		service.Spec.Ports = append(service.Spec.Ports, tmpPort)
 	}
 
 	service.Name = GenGeneralName(job.GetName(), rt, index)

@@ -30,6 +30,7 @@ const (
 	configMountPath         = "/etc/mpi"
 	kubexecScriptName       = "kubexec.sh"
 	hostfileName            = "hostfile"
+	intelMpiHostfile        = "intel_hostfile"
 	discoverHostsScriptName = "discover_hosts.sh"
 	kubectlDeliveryName     = "kubectl-delivery"
 	kubectlTargetDirEnv     = "TARGET_DIR"

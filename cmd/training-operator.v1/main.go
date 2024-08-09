@@ -106,10 +106,6 @@ func main() {
 	flag.StringVar(&config.Config.MPIKubectlDeliveryImage, "mpi-kubectl-delivery-image",
 		config.MPIKubectlDeliveryImageDefault, "The image for mpi launcher init container")
 
-	// deepspeed related flags
-	flag.StringVar(&config.Config.DeepspeedKubectlDeliveryImage, "mpi-kubectl-delivery-image",
-		config.DeepspeedKubectlDeliveryImageDefault, "The image for deepspeed launcher init container")
-
 	// Cert generation flags
 	flag.IntVar(&webhookServerPort, "webhook-server-port", 9443, "Endpoint port for the webhook server.")
 	flag.StringVar(&webhookServiceName, "webhook-service-name", "training-operator", "Name of the Service used as part of the DNSName")

@@ -254,13 +254,13 @@ func (jc *MPIJobReconciler) SetupWithManager(mgr ctrl.Manager, controllerThreads
 }
 
 // ReconcileServices is overridden because mpi-reconciler.v1 does not need to reconcile services
-func (jc *MPIJobReconciler) ReconcileServices(
-	job metav1.Object,
-	services []*corev1.Service,
-	rtype kubeflowv1.ReplicaType,
-	spec *kubeflowv1.ReplicaSpec) error {
-	return nil
-}
+// func (jc *MPIJobReconciler) ReconcileServices(
+// 	job metav1.Object,
+// 	services []*corev1.Service,
+// 	rtype kubeflowv1.ReplicaType,
+// 	spec *kubeflowv1.ReplicaSpec) error {
+// 	return nil
+// }
 
 func (jc *MPIJobReconciler) ControllerName() string {
 	return controllerName
@@ -1090,6 +1090,14 @@ func (jc *MPIJobReconciler) newLauncher(mpiJob *kubeflowv1.MPIJob, kubectlDelive
 			Name:  "OMPI_MCA_orte_default_hostfile",
 			Value: fmt.Sprintf("%s/%s", configMountPath, hostfileName),
 		},
+		corev1.EnvVar{
+			Name:  "I_MPI_HYDRA_HOST_FILE",
+			Value: fmt.Sprintf("%s/%s", configMountPath, intelMpiHostfile),
+		},
+		corev1.EnvVar{
+			Name:  "I_MPI_PERHOST",
+			Value: strconv.FormatInt(int64(*mpiJob.Spec.SlotsPerWorker), 10),
+		},
 	)
 
 	if !isGPULauncher {
@@ -1174,6 +1182,11 @@ func (jc *MPIJobReconciler) newLauncher(mpiJob *kubeflowv1.MPIJob, kubectlDelive
 							Mode: &hostfileMode,
 						},
 						{
+							Key:  intelMpiHostfile,
+							Path: intelMpiHostfile,
+							Mode: &hostfileMode,
+						},
+						{
 							Key:  discoverHostsScriptName,
 							Path: discoverHostsScriptName,
 							Mode: &scriptsMode,
@@ -1240,11 +1253,14 @@ shift
 		slots = int(*mpiJob.Spec.SlotsPerWorker)
 	}
 	var buffer bytes.Buffer
+	var bufferIntel bytes.Buffer
 	if isGPULauncher {
 		buffer.WriteString(fmt.Sprintf("%s%s slots=%d\n", mpiJob.Name, launcherSuffix, slots))
+		bufferIntel.WriteString(fmt.Sprintf("%s%s \n", mpiJob.Name, launcherSuffix))
 	}
 	for i := 0; i < int(workerReplicas); i++ {
 		buffer.WriteString(fmt.Sprintf("%s%s-%d slots=%d\n", mpiJob.Name, workerSuffix, i, slots))
+		bufferIntel.WriteString(fmt.Sprintf("%s%s-%d \n", mpiJob.Name, workerSuffix, i))
 	}
 
 	return &corev1.ConfigMap{
@@ -1260,6 +1276,7 @@ shift
 		},
 		Data: map[string]string{
 			hostfileName:      buffer.String(),
+			intelMpiHostfile:  bufferIntel.String(),
 			kubexecScriptName: kubexec,
 		},
 	}

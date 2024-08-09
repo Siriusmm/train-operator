@@ -393,7 +393,7 @@ func (jc *DeepspeedJobReconciler) ReconcilePods(
 		}
 
 		if launcher == nil {
-			launcher, err = jc.KubeClientSet.CoreV1().Pods(DeepspeedJob.Namespace).Create(context.Background(), jc.newLauncher(DeepspeedJob, ctlrconfig.Config.DeepspeedKubectlDeliveryImage, isGPULauncher), metav1.CreateOptions{})
+			launcher, err = jc.KubeClientSet.CoreV1().Pods(DeepspeedJob.Namespace).Create(context.Background(), jc.newLauncher(DeepspeedJob, ctlrconfig.Config.MPIKubectlDeliveryImage, isGPULauncher), metav1.CreateOptions{})
 			if err != nil {
 				jc.Recorder.Eventf(DeepspeedJob, corev1.EventTypeWarning, commonutil.NewReason(kubeflowv1.DeepspeedJobKind, commonutil.JobFailedReason), "launcher pod created failed: %v", err)
 				return err
